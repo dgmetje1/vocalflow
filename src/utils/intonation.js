@@ -1,28 +1,13 @@
 // Intonation scoring. Pitch is compared by *shape*, not absolute frequency:
 // the user's voiced pitch track is converted to semitones relative to their own
 // median, then centred on the target curve. A low and a high voice making the
-// same melodic movement therefore score the same.
+// same melodic movement therefore score the same. Targets come from prosody.js.
 
-export const CONTOUR_POINTS = 60
-
-// How many target-curve units one semitone spans. A typical question rise is
-// ~8 semitones, which maps onto the 0.55-unit rise of the rising target.
-const UNITS_PER_SEMITONE = 0.07
+import { UNITS_PER_SEMITONE, wordTimeline } from './prosody'
 
 const MIN_HZ = 60
 const MAX_HZ = 500
 const MAX_GAP_FRAMES = 6
-
-export function targetContour(pattern, n = CONTOUR_POINTS) {
-  const out = []
-  for (let i = 0; i < n; i++) {
-    const p = i / (n - 1)
-    if (pattern === 'rising') out.push(0.35 + 0.55 * p)
-    else if (pattern === 'falling') out.push(0.85 - 0.55 * p)
-    else out.push(0.6 - 0.05 * p * p)
-  }
-  return out
-}
 
 export function resample(arr, n) {
   if (!arr.length) return []
@@ -113,24 +98,22 @@ export function scoreContour(contour, target) {
   return Math.round(clamp01(1 - meanAbsDiff(contour, target) * 3) * 100)
 }
 
-// Splits the contour into one segment per word (weighted by word length) and
-// grades each: perfect / slight / strong deviation.
-export function wordScores(text, contour, target) {
-  const words = text.split(/\s+/).filter(Boolean)
+// Splits the contour into one segment per word, using the same syllable-based
+// timeline the target was built on, and grades each: perfect / slight / strong.
+// phrase: { text, language? }
+export function wordScores(phrase, contour, target) {
+  const words = wordTimeline(phrase?.text, phrase?.language)
   if (!words.length || !contour) return []
-  const weights = words.map((w) => Math.max(2, w.replace(/[^\p{L}\p{N}]/gu, '').length))
-  const total = weights.reduce((a, v) => a + v, 0)
-  let cursor = 0
-  return words.map((word, i) => {
-    const from = Math.round((cursor / total) * contour.length)
-    cursor += weights[i]
-    const to = Math.max(from + 1, Math.round((cursor / total) * contour.length))
+  const n = contour.length
+  return words.map(({ word, syllables, start, end }) => {
+    const from = Math.min(n - 1, Math.round(start * n))
+    const to = Math.max(from + 1, Math.round(end * n))
     const err = meanAbsDiff(contour, target, from, to)
     let bias = 0
     for (let k = from; k < to; k++) bias += contour[k] - target[k]
     const tone = err < 0.08 ? 'perfect' : err < 0.16 ? 'slight' : 'strong'
     // bias > 0: the voice sat above the target on this word; < 0: below it.
-    return { word, tone, weight: weights[i], err, bias: bias / (to - from) }
+    return { word, tone, weight: syllables, err, bias: bias / (to - from) }
   })
 }
 

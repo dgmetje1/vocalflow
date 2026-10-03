@@ -6,7 +6,8 @@ import { phrases, defaultPhraseId, tonalPatterns } from '../data/phrases'
 import { useSpeechRecognition } from '../composables/useSpeechRecognition'
 import { micSupported, usePitchDetection } from '../composables/usePitchDetection'
 import { matchContent } from '../utils/contentMatch'
-import { displayContour, scoreContour, targetContour, userContour } from '../utils/intonation'
+import { displayContour, scoreContour, userContour } from '../utils/intonation'
+import { targetContour } from '../utils/prosody'
 import { langTagFor, speak, stopSpeaking, ttsSupported } from '../utils/speech'
 import { generatePhraseSuggestions, hasLocalAI } from '../utils/localAI'
 import { lengthBadge, patternBadge, scoreColor } from '../utils/ui'
@@ -29,7 +30,7 @@ const phrase = computed(
     phrases[0],
 )
 const pattern = computed(() => tonalPatterns[phrase.value.pattern] || tonalPatterns.rising)
-const target = computed(() => targetContour(phrase.value.pattern))
+const target = computed(() => targetContour(phrase.value))
 
 // Keep the app language in sync with the phrase being practised, and jump to a
 // phrase in the new language when the language is changed elsewhere.
@@ -103,14 +104,17 @@ const hasSamples = computed(() => displaySamples.value.some((v) => v !== null))
 const currentTranscript = computed(() => speech.fullTranscript.value)
 const liveContentMatch = computed(() => (currentTranscript.value ? matchContent(currentTranscript.value, phrase.value.text) : null))
 
-const spectralBars = computed(() => {
-  const base = [20, 30, 50, 80, 60, 20, 10, 40, 70, 90, 50]
-  if (!isRecording.value) return base.map((h) => ({ h, a: 0.5 }))
-  const energy = Math.min(1, (pitch.level || 0) * 14)
-  return base.map((h) => ({
-    h: Math.min(100, Math.max(6, h * (0.5 + energy * 0.9) + Math.random() * 14)),
-    a: 0.45 + 0.55 * energy,
-  }))
+// Live fundamental frequency (F0) readout — what is actually being scored.
+// Median of the recent voiced frames keeps the number readable at 60 fps;
+// shows nothing between words rather than a stale value.
+const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
+const livePitch = computed(() => {
+  if (!isRecording.value) return null
+  const recent = pitch.samples.slice(-8).filter((hz) => hz >= 60 && hz <= 500)
+  if (recent.length < 3) return null
+  const hz = [...recent].sort((a, b) => a - b)[recent.length >> 1]
+  const midi = Math.round(69 + 12 * Math.log2(hz / 440))
+  return { hz: Math.round(hz), note: `${NOTE_NAMES[midi % 12]}${Math.floor(midi / 12) - 1}` }
 })
 
 const feedback = computed(() => {
@@ -509,7 +513,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- Controls & Spectral Waveform -->
+        <!-- Controls & live pitch -->
         <div class="glass-panel rounded-xl p-sm flex flex-col gap-sm">
           <div class="flex items-start justify-center gap-md sm:gap-lg">
             <div class="flex flex-col items-center gap-1 pt-4">
@@ -575,15 +579,14 @@ onBeforeUnmount(() => {
               Next phrase <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
             </button>
           </div>
-          <!-- Spectral Waveform -->
-          <div class="h-12 flex items-end justify-center gap-[2px] opacity-70" aria-hidden="true">
-            <div
-              v-for="(bar, i) in spectralBars"
-              :key="i"
-              class="w-1 rounded-t-sm"
-              :class="isRecording ? 'bg-secondary' : 'bg-primary'"
-              :style="{ height: bar.h + '%', opacity: bar.a }"
-            ></div>
+          <!-- Live pitch (F0) readout -->
+          <div v-if="isRecording" class="flex items-baseline justify-center gap-sm h-8" aria-hidden="true">
+            <span class="text-label-md text-on-surface-variant uppercase tracking-wider">Pitch</span>
+            <template v-if="livePitch">
+              <span class="text-headline-sm text-secondary tabular-nums">{{ livePitch.hz }} Hz</span>
+              <span class="text-label-md text-on-surface-variant tabular-nums">{{ livePitch.note }}</span>
+            </template>
+            <span v-else class="text-headline-sm text-outline-variant">—</span>
           </div>
         </div>
       </div>

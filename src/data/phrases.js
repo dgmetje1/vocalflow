@@ -8,7 +8,7 @@ export const tonalPatterns = {
   rising: {
     label: 'Rising Intonation',
     short: 'Rising',
-    desc: 'Indicates genuine inquiry or surprise. The pitch should steadily increase towards the end of the phrase.',
+    desc: 'Indicates genuine inquiry or surprise. Pitch stays fairly level, dips on the last stressed word, then climbs through to the end.',
     markers: [
       { color: 'bg-secondary', text: 'Strong onset' },
       { color: 'bg-tertiary', text: 'Mid-phrase dip too low' },
@@ -18,7 +18,7 @@ export const tonalPatterns = {
   falling: {
     label: 'Falling Intonation',
     short: 'Falling',
-    desc: 'Typical of statements and WH- questions. Pitch descends and stabilizes at the end of the phrase.',
+    desc: 'Typical of statements and WH- questions. Pitch peaks on the last stressed word, then falls and stays low to the end.',
     markers: [
       { color: 'bg-primary', text: 'Even stress across content words' },
       { color: 'bg-secondary', text: 'Clean final glide down' },
@@ -27,7 +27,7 @@ export const tonalPatterns = {
   neutral: {
     label: 'Neutral / Polite',
     short: 'Neutral',
-    desc: 'A flat, even contour. Pitch stays in a narrow band with gentle terminal settling.',
+    desc: 'A flat, even contour. Small bumps on stressed words, a narrow range, and a gentle settle at the end.',
     markers: [{ color: 'bg-secondary', text: 'Consistent, narrow range' }],
   },
 }

@@ -3,7 +3,8 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PitchCurve from '../components/PitchCurve.vue'
 import { tonalPatterns } from '../data/phrases'
-import { targetContour, wordScores } from '../utils/intonation'
+import { wordScores } from '../utils/intonation'
+import { targetContour } from '../utils/prosody'
 import { speak, stopSpeaking } from '../utils/speech'
 import { relativeTime, scoreColor } from '../utils/ui'
 import { deleteRecording, findPhrase, store } from '../store'
@@ -17,7 +18,10 @@ const active = computed(
   () => recordings.value.find((r) => String(r.id) === String(route.query.rec)) || recordings.value[0] || null,
 )
 const activePhrase = computed(() => (active.value ? findPhrase(active.value.phraseId) : null))
-const target = computed(() => (active.value ? targetContour(active.value.pattern) : []))
+// The catalog phrase carries `highlight`; fall back to the recording itself
+// (text/pattern/language) if the phrase no longer exists.
+const targetSource = computed(() => activePhrase.value || active.value)
+const target = computed(() => (active.value ? targetContour(targetSource.value) : []))
 
 function select(rec) {
   router.replace({ query: { rec: rec.id } })
@@ -29,7 +33,7 @@ const toneClasses = {
   strong: { bg: 'bg-error', text: 'text-error', label: 'Off target' },
 }
 
-const heatmap = computed(() => (active.value ? wordScores(active.value.text, active.value.contour, target.value) : []))
+const heatmap = computed(() => (active.value ? wordScores(targetSource.value, active.value.contour, target.value) : []))
 
 const insight = computed(() => {
   const rec = active.value

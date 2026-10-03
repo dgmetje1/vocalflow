@@ -1,6 +1,7 @@
 import { reactive, watch } from 'vue'
 import { phrases } from './data/phrases'
-import { scoreContour, targetContour } from './utils/intonation'
+import { scoreContour } from './utils/intonation'
+import { targetContour } from './utils/prosody'
 
 const STORAGE_KEY = 'vocalflow:v1'
 const MAX_RECORDINGS = 50
@@ -10,7 +11,7 @@ const MAX_RECORDINGS = 50
 // numbers always agree with what is drawn.
 function seedRecording(id, phraseId, hoursAgo, wobble, content) {
   const p = phrases.find((x) => x.id === phraseId)
-  const target = targetContour(p.pattern)
+  const target = targetContour(p)
   const contour = target.map((v, i) => {
     const t = i / (target.length - 1)
     return Math.min(1, Math.max(0, v + wobble.amp * Math.sin(t * Math.PI * wobble.freq) - wobble.tail * t * t))
