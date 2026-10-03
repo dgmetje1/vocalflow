@@ -14,6 +14,11 @@ const props = defineProps({
     type: String,
     default: 'text-primary',
   },
+  // No data yet: draw the empty track and a dash instead of "0%".
+  empty: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const radius = 15.9155
@@ -36,6 +41,7 @@ const dash = computed(() => Math.max(0, Math.min(100, props.value)))
         stroke-width="4"
       />
       <path
+        v-if="!empty"
         :class="colorClass"
         :d="`M18 ${2.0845} a ${radius} ${radius} 0 0 1 0 31.831 a ${radius} ${radius} 0 0 1 0 -31.831`"
         fill="none"
@@ -44,6 +50,6 @@ const dash = computed(() => Math.max(0, Math.min(100, props.value)))
         stroke-width="4"
       />
     </svg>
-    <span class="text-label-md font-bold">{{ value }}%</span>
+    <span class="text-label-md font-bold">{{ empty ? '—' : `${value}%` }}</span>
   </div>
 </template>

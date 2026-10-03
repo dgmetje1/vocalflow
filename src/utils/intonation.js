@@ -8,6 +8,10 @@ import { UNITS_PER_SEMITONE, wordTimeline } from './prosody'
 const MIN_HZ = 60
 const MAX_HZ = 500
 const MAX_GAP_FRAMES = 6
+// Detector glitches (onsets, breaths, creak, octave slips) show up as short
+// blips or wild jumps; both are dropped before scoring.
+const MIN_RUN_FRAMES = 3
+const MAX_SEMITONES_FROM_MEDIAN = 12
 
 export function resample(arr, n) {
   if (!arr.length) return []
@@ -30,6 +34,23 @@ function median(values) {
 
 function isVoiced(hz) {
   return hz >= MIN_HZ && hz <= MAX_HZ
+}
+
+// Indices of trustworthy voiced frames: in a run of at least MIN_RUN_FRAMES,
+// and within an octave of the speaker's median pitch. A handful of glitch
+// frames would otherwise shift the whole contour off the scale.
+function reliableVoicedIndices(hzSamples) {
+  const runs = []
+  let run = []
+  hzSamples.forEach((hz, i) => {
+    if (isVoiced(hz)) run.push(i)
+    else if (run.length) (runs.push(run), (run = []))
+  })
+  if (run.length) runs.push(run)
+  const kept = runs.filter((r) => r.length >= MIN_RUN_FRAMES).flat()
+  if (!kept.length) return []
+  const ref = median(kept.map((i) => hzSamples[i]))
+  return kept.filter((i) => Math.abs(12 * Math.log2(hzSamples[i] / ref)) <= MAX_SEMITONES_FROM_MEDIAN)
 }
 
 // 5-point median filter over voiced samples to knock out octave-jump spikes
@@ -56,14 +77,8 @@ function centreOn(semitones, target) {
 // Raw Hz track (0 = unvoiced) -> array of 0..1 values or null for unvoiced
 // frames, aligned to the target. Used for the live/after-the-fact overlay.
 export function displayContour(hzSamples, target) {
-  const voicedIdx = []
-  const voiced = []
-  hzSamples.forEach((hz, i) => {
-    if (isVoiced(hz)) {
-      voicedIdx.push(i)
-      voiced.push(hz)
-    }
-  })
+  const voicedIdx = reliableVoicedIndices(hzSamples)
+  const voiced = voicedIdx.map((i) => hzSamples[i])
   if (voiced.length < 2) return hzSamples.map(() => null)
   const aligned = centreOn(toSemitones(despike(voiced)), target)
   const out = hzSamples.map(() => null)
@@ -83,7 +98,7 @@ export function displayContour(hzSamples, target) {
 // Raw Hz track -> fixed-length aligned contour of the voiced portion only, or
 // null when there is not enough voiced speech to judge.
 export function userContour(hzSamples, target, minVoiced = 6) {
-  const voiced = hzSamples.filter(isVoiced)
+  const voiced = reliableVoicedIndices(hzSamples).map((i) => hzSamples[i])
   if (voiced.length < minVoiced) return null
   return centreOn(resample(toSemitones(despike(voiced)), target.length), target)
 }

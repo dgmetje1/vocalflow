@@ -1,7 +1,7 @@
 export const languages = [
-  { id: 'en', name: 'English', level: 'C1 Advanced', score: 82, focus: 'Pitch Accuracy', barColor: 'bg-secondary', ringColor: 'text-primary' },
-  { id: 'es', name: 'Spanish', level: 'B2 Upper', score: 64, focus: 'Rhythm Focus', barColor: 'bg-tertiary', ringColor: 'text-primary' },
-  { id: 'ca', name: 'Catalan', level: 'A1 Basic', score: 15, focus: 'Vowel Clarity', barColor: 'bg-outline', ringColor: 'text-outline', dimmed: true },
+  { id: 'en', name: 'English' },
+  { id: 'es', name: 'Spanish' },
+  { id: 'ca', name: 'Catalan' },
 ]
 
 export const tonalPatterns = {
@@ -327,19 +327,3 @@ export const phrases = [
 ]
 
 export const defaultPhraseId = 11
-
-export const recommendedPhrases = [
-  { id: 11, text: 'Where did you go yesterday?', pattern: 'rising' },
-  { id: 2, text: 'How are you doing today?', pattern: 'falling' },
-  { id: 7, text: "I'd like a coffee, please.", pattern: 'neutral' },
-]
-
-export const weeklyActivity = [
-  { day: 'M', minutes: 40 },
-  { day: 'T', minutes: 60 },
-  { day: 'W', minutes: 90 },
-  { day: 'T', minutes: 30 },
-  { day: 'F', minutes: 50 },
-  { day: 'S', minutes: 10 },
-  { day: 'S', minutes: 10 },
-]

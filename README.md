@@ -4,7 +4,8 @@ A standalone Vue 3 app that implements the **Polyglot Intonation Trainer** proje
 
 ## Features
 
-- **Dashboard** — weekly activity, language progress rings, recommended phrases, streak
+- **Dashboard** — everything computed from your own takes: practice streak, this week's activity, and per-language progress (recent average, phrases covered, weakest intonation pattern)
+- **Daily drill** — five phrases a day picked by spaced repetition (poor takes come back the same day, good ones back off 3 → 6 → 12… days) and weighted toward your weakest pattern; each pick says why it was chosen, and Practice shows drill progress with "Next in drill"
 - **Practice** — speak a phrase and get a live pitch-curve overlay against the native target, a live pitch (F0) readout in Hz and note name, and a match score. Your take is captured via `MediaRecorder` and can be **replayed** (and replayed later from the Analysis screen) with the play button.
   Press **Space** to start/stop recording; **Esc** closes the phrase picker.
 - **Analysis** — your stored contour overlaid on the target, a per-word heatmap showing where you drifted (and in which direction), coach feedback, and a recording history you can replay or delete

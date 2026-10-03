@@ -11,6 +11,7 @@ import { targetContour } from '../utils/prosody'
 import { langTagFor, speak, stopSpeaking, ttsSupported } from '../utils/speech'
 import { generatePhraseSuggestions, hasLocalAI } from '../utils/localAI'
 import { lengthBadge, patternBadge, scoreColor } from '../utils/ui'
+import { drillProgress } from '../utils/progress'
 import { addRecording, findPhrase, store } from '../store'
 
 const IDLE_STATUS = 'Tap the mic (or press Space) and say the phrase'
@@ -32,7 +33,7 @@ const phrase = computed(
 const pattern = computed(() => tonalPatterns[phrase.value.pattern] || tonalPatterns.rising)
 const target = computed(() => targetContour(phrase.value))
 
-// Keep the app language in sync with the phrase being practised, and jump to a
+// Keep the app language in sync with the phrase being practiced, and jump to a
 // phrase in the new language when the language is changed elsewhere.
 watch(
   phrase,
@@ -156,11 +157,27 @@ async function openCatalog() {
 function closeCatalog() {
   state.catalogOpen = false
 }
-function selectPhrase(id) {
-  router.push({ path: '/practice', query: { phrase: String(id) } })
+function selectPhrase(id, { drill = false } = {}) {
+  router.push({ path: '/practice', query: { phrase: String(id), ...(drill ? { drill: '1' } : {}) } })
   closeCatalog()
 }
+
+// ---- Daily drill mode (?drill=1) ----
+const drill = computed(() => drillProgress(store.drills[phrase.value.language], store.recordings))
+const drillIndex = computed(() => drill.value.items.findIndex((i) => String(i.phraseId) === String(phrase.value.id)))
+const inDrill = computed(() => String(route.query.drill) === '1' && drillIndex.value >= 0)
+// The next unfinished drill phrase after this one, wrapping round.
+const nextDrillItem = computed(() => {
+  const items = drill.value.items
+  for (let k = 1; k <= items.length; k++) {
+    const item = items[(drillIndex.value + k) % items.length]
+    if (!item.done && String(item.phraseId) !== String(phrase.value.id)) return item
+  }
+  return null
+})
+
 function nextPhrase() {
+  if (inDrill.value && nextDrillItem.value) return selectPhrase(nextDrillItem.value.phraseId, { drill: true })
   const list = phrasesInLanguage.value
   const i = list.findIndex((p) => p.id === phrase.value.id)
   const next = list[(i + 1) % list.length]
@@ -387,6 +404,36 @@ onBeforeUnmount(() => {
 
       <!-- Visualization Area -->
       <div class="lg:col-span-8 flex flex-col gap-md">
+        <!-- Drill progress -->
+        <div v-if="inDrill" class="glass-panel rounded-xl px-md py-sm flex items-center justify-between gap-sm flex-wrap">
+          <div class="flex items-center gap-sm">
+            <span class="material-symbols-outlined text-secondary">fitness_center</span>
+            <span class="text-label-md text-on-surface">Today's drill · {{ drillIndex + 1 }} of {{ drill.total }}</span>
+            <span class="text-label-md text-on-surface-variant">({{ drill.done }} done)</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <nav class="flex gap-1.5" aria-label="Drill phrases">
+              <router-link
+                v-for="(item, i) in drill.items"
+                :key="item.phraseId"
+                :to="{ path: '/practice', query: { phrase: String(item.phraseId), drill: '1' } }"
+                class="w-3 h-3 rounded-full transition-colors"
+                :class="[
+                  item.done ? 'bg-secondary' : 'bg-surface-variant hover:bg-outline',
+                  i === drillIndex ? 'ring-2 ring-primary ring-offset-2 ring-offset-surface' : '',
+                ]"
+                :aria-label="`Drill phrase ${i + 1}${item.done ? ', done' : ''}`"
+                :aria-current="i === drillIndex ? 'step' : undefined"
+              ></router-link>
+            </nav>
+            <router-link
+              :to="{ path: '/practice', query: { phrase: String(phrase.id) } }"
+              class="text-label-md text-on-surface-variant hover:text-on-surface"
+              >Exit drill</router-link
+            >
+          </div>
+        </div>
+
         <!-- Phrase Header -->
         <div class="glass-panel rounded-xl p-md flex flex-col gap-sm">
           <div class="flex items-start justify-between flex-wrap gap-sm">
@@ -565,7 +612,31 @@ onBeforeUnmount(() => {
           <div class="flex items-center justify-center text-center min-h-5" aria-live="polite">
             <span class="text-label-md" :class="state.error ? 'text-tertiary' : isRecording ? 'text-secondary' : 'text-on-surface-variant'">{{ state.status }}</span>
           </div>
-          <div v-if="state.mode === 'done'" class="flex flex-wrap items-center justify-center gap-sm">
+          <div
+            v-if="state.mode === 'done' && inDrill && drill.complete"
+            class="flex flex-col items-center gap-xs text-center"
+            role="status"
+          >
+            <p class="text-body-md text-secondary flex items-center gap-xs">
+              <span class="material-symbols-outlined">celebration</span>
+              Drill complete — average {{ drill.average }}% across {{ drill.total }} phrases.
+            </p>
+            <div class="flex flex-wrap justify-center gap-sm">
+              <button
+                @click="toggleMic"
+                class="flex items-center gap-1 px-md py-xs rounded-full border border-outline-variant/30 text-label-md text-on-surface hover:bg-surface-variant/30 transition-colors"
+              >
+                <span class="material-symbols-outlined text-[18px]">restart_alt</span> Try again
+              </button>
+              <router-link
+                to="/"
+                class="flex items-center gap-1 px-md py-xs rounded-full bg-secondary/15 border border-secondary/30 text-label-md text-secondary hover:bg-secondary/25 transition-colors"
+              >
+                Back to dashboard <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+              </router-link>
+            </div>
+          </div>
+          <div v-else-if="state.mode === 'done'" class="flex flex-wrap items-center justify-center gap-sm">
             <button
               @click="toggleMic"
               class="flex items-center gap-1 px-md py-xs rounded-full border border-outline-variant/30 text-label-md text-on-surface hover:bg-surface-variant/30 transition-colors"
@@ -576,7 +647,7 @@ onBeforeUnmount(() => {
               @click="nextPhrase"
               class="flex items-center gap-1 px-md py-xs rounded-full bg-primary/15 border border-primary/30 text-label-md text-primary hover:bg-primary/25 transition-colors"
             >
-              Next phrase <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+              {{ inDrill ? 'Next in drill' : 'Next phrase' }} <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
             </button>
           </div>
           <!-- Live pitch (F0) readout -->

@@ -2,6 +2,7 @@ import { reactive, watch } from 'vue'
 import { phrases } from './data/phrases'
 import { scoreContour } from './utils/intonation'
 import { targetContour } from './utils/prosody'
+import { buildDrill, dayKey } from './utils/progress'
 
 const STORAGE_KEY = 'vocalflow:v1'
 const MAX_RECORDINGS = 50
@@ -50,12 +51,13 @@ function load() {
 const saved = load()
 
 export const store = reactive({
-  streak: 14,
   name: 'Alex',
   language: saved?.language || 'English',
   favorites: saved?.favorites || phrases.filter((p) => p.favorite).map((p) => p.id),
   suggestedPhrases: saved?.suggestedPhrases || [],
   recordings: saved?.recordings || seedRecordings(),
+  // Today's drill per language: { date, items: [{ phraseId, reason, lastScore? }] }
+  drills: saved?.drills || {},
 })
 
 watch(
@@ -68,6 +70,7 @@ watch(
           language: store.language,
           favorites: store.favorites,
           suggestedPhrases: store.suggestedPhrases,
+          drills: store.drills,
           // Blob URLs die with the page, so audio is never persisted.
           recordings: store.recordings.map(({ audioUrl, ...rest }) => rest),
         }),
@@ -109,3 +112,20 @@ export function findPhrase(id) {
   const key = String(id)
   return phrases.find((p) => String(p.id) === key) || store.suggestedPhrases.find((p) => String(p.id) === key) || null
 }
+
+export function phrasesFor(language) {
+  return [...phrases, ...store.suggestedPhrases].filter((p) => p.language === language)
+}
+
+// Builds the day's drill for a language the first time it is needed; it then
+// stays fixed for the rest of the day so progress through it is stable.
+export function ensureDrill(language = store.language, now = Date.now()) {
+  const today = dayKey(now)
+  const existing = store.drills[language]
+  if (existing?.date === today) return existing
+  const drill = { date: today, ...buildDrill(store.recordings, phrasesFor(language), language, now) }
+  store.drills[language] = drill
+  return drill
+}
+
+watch(() => store.language, (language) => ensureDrill(language), { immediate: true })
